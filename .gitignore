@@ -1,7 +1,7 @@
 # anchored to the repo root -- an unanchored `data/` also matches src/cfd/data/
 /data/
 /results/
-/reports/figures/
+
 *.parquet
 *.csv
 !configs/*.csv

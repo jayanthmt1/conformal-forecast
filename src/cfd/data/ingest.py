@@ -83,6 +83,14 @@ def load_m5(
 
     long = long.join(prices, on=["store_id", "item_id", "wm_yr_wk"], how="left")
 
+    # M5 records zeros from day 1 for items launched years later. Those rows are not
+    # intermittent demand, they are "not yet on the shelf": drop everything before each
+    # series' first sale so lags, segments and Croston see real history only.
+    first_sale = (
+        long.filter(pl.col("y") > 0).group_by("id").agg(pl.col("date").min().alias("first_sale"))
+    )
+    long = long.join(first_sale, on="id", how="inner").filter(pl.col("date") >= pl.col("first_sale"))
+
     return (
         long.rename({"id": "series_id"})
         .with_columns(
