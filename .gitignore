@@ -1,0 +1,17 @@
+# anchored to the repo root -- an unanchored `data/` also matches src/cfd/data/
+/data/
+/results/
+/reports/figures/
+*.parquet
+*.csv
+!configs/*.csv
+
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+*.egg-info/
+
+.DS_Store
