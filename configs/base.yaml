@@ -19,7 +19,7 @@ features:
   groups: [calendar, price, lags, rolling, hierarchy]
 
 model:
-  quantiles: [0.05, 0.10, 0.25, 0.50, 0.75, 0.80, 0.90, 0.95]
+  quantiles: [0.025, 0.05, 0.10, 0.25, 0.50, 0.75, 0.80, 0.90, 0.95, 0.975]
   val_len: 28              # carved off the END OF TRAIN for early stopping -- never calib
   point_objective: tweedie # zero-inflated counts; predicts a conditional mean
   num_boost_round: 400
@@ -43,7 +43,20 @@ splits:
 
 conformal:
   alpha: 0.10
-  nominal_levels: [0.50, 0.80, 0.90]   # must be formable from model.quantiles
+  nominal_levels: [0.50, 0.80, 0.90, 0.95]   # each needs (a/2, 1-a/2) in model.quantiles
+  aci:
+    gamma: 0.05          # ACI step size; larger reacts faster and oscillates more
+    feedback_lag: 1      # days between a realised outcome and its use in the update
+
+shift:
+  # synthetic shifts applied to the TEST window only -- predictions are left untouched,
+  # so this isolates "the world moved" from "the model moved"
+  onset_day: 8           # 1-indexed test day the shift starts on (1 = whole window)
+  scenarios:
+    none: {}
+    level_up: {multiply: 1.5}
+    level_down: {multiply: 0.6}
+    variance: {lognormal_sigma: 0.6}
 
 decision:
   holding_cost: 1.0
@@ -51,4 +64,8 @@ decision:
 
 eval:
   results_path: results/results.parquet
+  preds_path: results/preds/gbm.parquet
+  figures_dir: reports/figures
+  tables_dir: reports/tables
+  n_boot: 10000
   seed: 42

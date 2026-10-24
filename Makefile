@@ -1,4 +1,4 @@
-.PHONY: install data baselines test lint clean
+.PHONY: install data baselines gbm test lint clean
 
 install:
 	uv sync --extra dev
@@ -8,6 +8,9 @@ data:
 
 baselines:
 	uv run python scripts/run_baselines.py
+
+gbm:
+	uv run python scripts/run_gbm.py
 
 test:
 	uv run pytest -q

@@ -70,6 +70,7 @@ uv sync --extra dev
 uv run pytest -q                        # leakage, split, and metric tests
 uv run python scripts/prepare_data.py   # panel -> features parquet (synthetic by default)
 uv run python scripts/run_baselines.py  # seasonal naive + Croston across all folds
+uv run python scripts/run_gbm.py        # LightGBM point + multi-quantile across all folds
 ```
 
 To switch to real M5: put `calendar.csv`, `sell_prices.csv`, and `sales_train_evaluation.csv` in
@@ -96,6 +97,7 @@ src/cfd/
 │   └── features.py       # named feature groups; segment labels
 ├── splits.py             # walk-forward train | calib | test
 ├── models/baselines.py   # seasonal naive, Croston (SBA)
+├── models/gbm.py         # global LightGBM point + multi-quantile boosters
 └── eval/
     ├── metrics.py        # MASE, RMSSE, WRMSSE, pinball, coverage, paired bootstrap
     └── track.py          # append-only results.parquet keyed by config hash
@@ -110,7 +112,7 @@ Reproducibility is YAML in git plus a config hash on every result row — no tra
 - [x] Walk-forward splitter with dedicated calibration block
 - [x] Leakage / alignment / metric tests
 - [x] Baselines: seasonal naive, Croston
-- [ ] LightGBM point + multi-quantile
+- [x] LightGBM point + multi-quantile
 - [ ] CQR calibration; calibration curve; segment-conditional coverage
 - [ ] Newsvendor decision layer + `p/h` cost sweep
 - [ ] Paired bootstrap CIs on headline comparisons
