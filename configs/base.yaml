@@ -1,5 +1,5 @@
 data:
-  source: synthetic          # synthetic | m5
+  source: m5                 # synthetic | m5
   raw_dir: data/raw
   processed_path: data/processed/panel.parquet
   store: CA_1                # m5 only: restrict to one store

@@ -2,8 +2,9 @@
 
 Each scenario perturbs realised demand in the TEST window from `onset_day` on, leaving
 every forecast untouched. That isolates "the world moved" from "the model changed".
-Static CQR (calibrated once on the calib block) is compared with ACI (the same intervals,
-re-levelled daily from realised coverage) on coverage, width, and newsvendor cost.
+Static one-sided CQR [0, q + qhat] (calibrated once on the calib block) is compared with ACI
+(the same construction, re-levelled daily from realised coverage) on coverage, width, and
+newsvendor cost.
 
 The expected shape of the result, which is the point of running it:
     no shift      ACI ~ CQR            adaptation is overhead with nothing to adapt to
@@ -21,8 +22,7 @@ import numpy as np
 import polars as pl
 
 from cfd.config import load_config, resolve
-from cfd.conformal import adaptive, cqr
-from cfd.conformal.cqr import nominal_to_taus
+from cfd.conformal import adaptive
 from cfd.decision.newsvendor import critical_fractile, interpolate_quantile, newsvendor_cost
 from cfd.decision.simulate import quantile_matrix
 from cfd.pipeline import quantile_col
@@ -62,8 +62,7 @@ def main() -> None:
     p = HEADLINE_RATIO * h
     tau = critical_fractile(p, h)
 
-    lo_tau, hi_tau = nominal_to_taus(level)
-    lo_col, hi_col = quantile_col(lo_tau), quantile_col(hi_tau)
+    up_col = quantile_col(round(level, 6))
     rng = np.random.default_rng(cfg["eval"]["seed"])
 
     rows, traces = [], []
@@ -77,12 +76,12 @@ def main() -> None:
         y_true = test.get_column("y").to_numpy()
         yhat = test.get_column("yhat").to_numpy()
 
-        # two-sided CQR pieces
+        # one-sided CQR [0, q_{level} + qhat]: on zero-inflated counts the central interval's
+        # lower edge is pinned at 0 and its score distribution has an atom there, which leaves
+        # ACI with no lever. The one-sided construction is also what the ordering decision uses.
         y_cal = calib.get_column("y").to_numpy()
-        cal_scores = cqr.scores(y_cal, calib.get_column(lo_col).to_numpy(), calib.get_column(hi_col).to_numpy())
-        qlo_days = by_day(test.get_column(lo_col).to_numpy(), day)
-        qhi_days = by_day(test.get_column(hi_col).to_numpy(), day)
-        interval_fn = adaptive.cqr_interval_fn(cal_scores, qlo_days, qhi_days)
+        cal_scores = y_cal - calib.get_column(up_col).to_numpy()
+        interval_fn = adaptive.upper_bound_fn(cal_scores, by_day(test.get_column(up_col).to_numpy(), day))
 
         # one-sided pieces for the ordering decision at the headline fractile
         taus, q_cal = quantile_matrix(calib)

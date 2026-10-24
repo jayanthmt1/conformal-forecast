@@ -101,7 +101,7 @@ with tab_explore:
     y = test.get_column("y").to_numpy()
 
     iv = data["intervals"].filter(
-        (pl.col("fold") == fold) & (pl.col("series_id") == series) & (pl.col("method") == "cqr")
+        (pl.col("fold") == fold) & (pl.col("series_id") == series) & (pl.col("method") == "cqr_upper")
     ).sort("date")
 
     import matplotlib.pyplot as plt
@@ -110,7 +110,7 @@ with tab_explore:
     x = test.get_column("date").to_list()
     if iv.height:
         ax.fill_between(x, iv.get_column("lower").to_numpy(), iv.get_column("upper").to_numpy(),
-                        alpha=0.18, color="#1a73e8", label=f"CQR {level:.0%} interval")
+                        alpha=0.18, color="#34a853", label=f"one-sided CQR {level:.0%} interval")
     ax.plot(x, y, "k.-", label="realised demand")
     ax.plot(x, orders["point"], color="#5f6368", ls="--", label="order: point (mean)")
     ax.plot(x, orders["quantile"], color="#e0a100", label=f"order: raw quantile τ={tau:.2f}")
@@ -141,8 +141,10 @@ one pinball-loss model per quantile level. Lag and rolling features are shifted 
 
 **Calibration.** Each walk-forward fold has a calibration block strictly between train and test.
 *Split conformal* widens the point forecast symmetrically; *CQR* shifts the quantile model's
-(α/2, 1−α/2) predictions by a single scalar until calibration coverage hits the target. The width then
-adapts to the series while the level is set by data the model never saw.
+predictions by a single scalar until calibration coverage hits the target. The width then adapts to
+the series while the level is set by data the model never saw. Because zero-inflated demand has no
+lower tail to speak of, the construction used for decisions is **one-sided**, `[0, q̂₁₋α + q̂]`; the
+central (α/2, 1−α/2) version is reported alongside it to show why.
 
 **What is and is not promised.** Split conformal and CQR give finite-sample *marginal* coverage under
 exchangeability. Time series are not exchangeable, so coverage here is **measured** on held-out test

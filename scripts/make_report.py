@@ -24,13 +24,14 @@ HEADLINE_RATIO = 4.0
 METHOD_LABEL = {
     "raw_quantile": "raw quantile model",
     "split_conformal": "split conformal",
-    "cqr": "CQR",
+    "cqr": "CQR (central)",
+    "cqr_upper": "CQR (one-sided)",
     "cqr_static": "CQR (static)",
     "aci": "ACI",
     "point_policy": "point policy",
 }
 POLICY_LABEL = {"point": "point (mean)", "quantile": "raw quantile", "conformal": "conformal"}
-COLORS = {"raw_quantile": "#9aa0a6", "split_conformal": "#e0a100", "cqr": "#1a73e8",
+COLORS = {"raw_quantile": "#9aa0a6", "split_conformal": "#e0a100", "cqr": "#1a73e8", "cqr_upper": "#34a853",
           "cqr_static": "#9aa0a6", "aci": "#1a73e8", "point": "#5f6368",
           "quantile": "#e0a100", "conformal": "#1a73e8"}
 
@@ -60,7 +61,7 @@ def fig_calibration(conf: pl.DataFrame, out: Path) -> None:
     marg = conf.filter(pl.col("segment") == "all")
     fig, (ax, axw) = plt.subplots(1, 2, figsize=(10, 4))
     ax.plot([0.45, 1.0], [0.45, 1.0], "k--", lw=1, label="nominal = empirical")
-    for method in ("raw_quantile", "split_conformal", "cqr"):
+    for method in ("raw_quantile", "split_conformal", "cqr", "cqr_upper"):
         g = (
             marg.filter(pl.col("method") == method)
             .group_by("nominal")
@@ -94,14 +95,14 @@ def fig_segments(conf: pl.DataFrame, level: float, out: Path) -> None:
             .agg(pl.col("coverage").mean(), pl.col("width").mean())
         )
         values = sorted(g.get_column("segment_value").unique().to_list())
-        methods = ("raw_quantile", "split_conformal", "cqr")
-        w = 0.26
+        methods = ("raw_quantile", "split_conformal", "cqr", "cqr_upper")
+        w = 0.2
         for i, method in enumerate(methods):
             sub = g.filter(pl.col("method") == method).sort("segment_value")
             lookup = {r["segment_value"]: r for r in sub.iter_rows(named=True)}
             cov = [lookup[v]["coverage"] if v in lookup else np.nan for v in values]
             wid = [lookup[v]["width"] if v in lookup else np.nan for v in values]
-            xs = np.arange(len(values)) + (i - 1) * w
+            xs = np.arange(len(values)) + (i - 1.5) * w
             bars = ax.bar(xs, cov, width=w, label=METHOD_LABEL[method], color=COLORS[method])
             for b, wi in zip(bars, wid, strict=True):
                 ax.text(b.get_x() + b.get_width() / 2, 0.02, f"w={wi:.0f}", ha="center",
@@ -112,7 +113,7 @@ def fig_segments(conf: pl.DataFrame, level: float, out: Path) -> None:
                ylim=(0, 1.05))
         ax.grid(axis="y", alpha=0.3)
     axes[0].set_ylabel("empirical coverage (mean over folds)")
-    axes[1].legend(fontsize=8, loc="upper center", bbox_to_anchor=(0.5, -0.12), ncol=3, frameon=False)
+    axes[1].legend(fontsize=8, loc="upper center", bbox_to_anchor=(0.5, -0.12), ncol=4, frameon=False)
     fig.tight_layout()
     fig.savefig(out / "coverage_by_segment.png", dpi=150)
     plt.close(fig)
@@ -180,7 +181,7 @@ def fig_shift(daily: pl.DataFrame, onset: int, level: float, out: Path) -> None:
     axes[0, 0].set_ylabel("daily coverage (pooled over series)")
     axes[1, 0].set_ylabel("mean interval width")
     axes[0, 0].legend(fontsize=8, loc="lower left")
-    fig.suptitle("Static CQR vs ACI under injected shift (red dotted = onset)", y=1.0)
+    fig.suptitle("One-sided CQR, static vs ACI, under injected shift (red dotted = onset)", y=1.0)
     fig.tight_layout()
     fig.savefig(out / "shift_coverage_over_time.png", dpi=150)
     plt.close(fig)
@@ -302,10 +303,11 @@ def main() -> None:
     # ---- headline
     head = cis.filter((pl.col("cost_ratio") == HEADLINE_RATIO) & (pl.col("policy") == "conformal")
                       & (pl.col("unit") == "fold")).row(0, named=True)
-    cov = conf.filter((pl.col("segment") == "all") & (pl.col("nominal") == level)
-                      & (pl.col("method") == "cqr")).get_column("coverage").mean()
-    raw_cov = conf.filter((pl.col("segment") == "all") & (pl.col("nominal") == level)
-                          & (pl.col("method") == "raw_quantile")).get_column("coverage").mean()
+    def cov_of(method: str) -> float:
+        return conf.filter((pl.col("segment") == "all") & (pl.col("nominal") == level)
+                           & (pl.col("method") == method)).get_column("coverage").mean()
+
+    cov, central_cov, raw_cov = cov_of("cqr_upper"), cov_of("cqr"), cov_of("raw_quantile")
     n_series = preds.get_column("series_id").n_unique()
     n_folds = preds.get_column("fold").n_unique()
     source = cfg["data"]["source"]
@@ -317,8 +319,9 @@ def main() -> None:
         f"ordering the conformally calibrated quantile reduced simulated inventory cost by "
         f"**{head['reduction']:.1%} (95% paired-bootstrap CI {head['lo']:.1%} to {head['hi']:.1%})** "
         f"versus ordering the mean forecast at a stockout/holding ratio of **{HEADLINE_RATIO:g}:1**, while "
-        f"CQR intervals held **{cov:.1%} empirical coverage** against a {level:.0%} nominal target "
-        f"(raw quantile model: {raw_cov:.1%}), across **{n_folds} walk-forward folds** and "
+        f"one-sided CQR intervals held **{cov:.1%} empirical coverage** against a {level:.0%} nominal "
+        f"target (central CQR {central_cov:.1%}, raw quantile model {raw_cov:.1%}), across "
+        f"**{n_folds} walk-forward folds** and "
         f"**{n_series} series**."
     )
 
@@ -332,7 +335,7 @@ def main() -> None:
         "### Decision layer: cost relative to the point policy\n\n![cost sweep](reports/figures/cost_sweep.png)\n\n" + tables["cost_sweep.md"]
         + f"\n\nPaired bootstrap 95% CIs for the cost reduction vs the point policy at p/h = {HEADLINE_RATIO:g}:\n\n" + tables["decision_ci.md"],
     ] + ([
-        "### Shift experiment: static CQR vs ACI\n\n![shift](reports/figures/shift_coverage_over_time.png)\n\n" + tables["shift.md"],
+        "### Shift experiment: one-sided CQR, static vs ACI\n\n![shift](reports/figures/shift_coverage_over_time.png)\n\n" + tables["shift.md"],
     ] if shift is not None else []) + ([
         "### Feature-group ablation\n\n![ablation](reports/figures/ablation.png)\n\n" + tables["ablation.md"],
     ] if abl is not None else []) + ["<!-- results:end -->"])

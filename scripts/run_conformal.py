@@ -1,9 +1,10 @@
 """Stage [4]: calibrate intervals on each fold's calib block, measure them on its test block.
 
-Three interval methods at every nominal level in configs/base.yaml:
+Four interval constructions at every nominal level in configs/base.yaml:
     raw_quantile     the quantile model's own (a/2, 1-a/2) predictions, uncalibrated
     split_conformal  symmetric band around the point forecast
-    cqr              conformalized quantile regression
+    cqr              conformalized quantile regression, central (a/2, 1-a/2)
+    cqr_upper        one-sided CQR: [0, q_{1-a} + qhat] -- the shape zero-inflated demand needs
 
 Writes
     results/conformal.parquet         coverage + width by fold x method x level x segment
@@ -54,6 +55,16 @@ def intervals_for_fold(
         y_cal, calib.get_column(lo_col).to_numpy(), calib.get_column(hi_col).to_numpy(), alpha
     )
     out["cqr"] = (*cqr.interval(qlo, qhi, c_hat), c_hat)
+
+    # ONE-SIDED: [0, q_{level} + qhat]. For zero-inflated counts the lower edge of a central
+    # interval sits at 0 anyway, so the lower tail buys nothing and the central interval
+    # really covers 1 - alpha/2. Putting all of alpha in the upper tail is the construction
+    # that matches both the data and the ordering decision.
+    up_col = quantile_col(round(level, 6))
+    if up_col in test.columns:
+        u_hat = cqr.calibrate_upper(y_cal, calib.get_column(up_col).to_numpy(), level)
+        upper = cqr.upper_bound(test.get_column(up_col).to_numpy(), u_hat)
+        out["cqr_upper"] = (np.zeros_like(upper), upper, u_hat)
     return out
 
 

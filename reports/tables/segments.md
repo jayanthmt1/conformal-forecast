@@ -1,11 +1,14 @@
 | demand segment | method | coverage | width |
 |---|---|---|---|
-| intermittent | CQR | 0.966 | 3.8 |
-| intermittent | raw quantile model | 0.961 | 3.8 |
-| intermittent | split conformal | 1.000 | 27.3 |
-| smooth | CQR | 0.880 | 30.7 |
-| smooth | raw quantile model | 0.879 | 30.6 |
-| smooth | split conformal | 0.980 | 52.7 |
-| volatile | CQR | 0.863 | 88.0 |
-| volatile | raw quantile model | 0.863 | 88.0 |
-| volatile | split conformal | 0.696 | 52.3 |
+| intermittent | CQR (central) | 0.949 | 11.6 |
+| intermittent | CQR (one-sided) | 0.897 | 8.8 |
+| intermittent | raw quantile model | 0.949 | 11.6 |
+| intermittent | split conformal | 0.904 | 9.6 |
+| smooth | CQR (central) | 0.944 | 12.5 |
+| smooth | CQR (one-sided) | 0.891 | 10.4 |
+| smooth | raw quantile model | 0.944 | 12.5 |
+| smooth | split conformal | 0.899 | 10.1 |
+| volatile | CQR (central) | 0.955 | 12.4 |
+| volatile | CQR (one-sided) | 0.905 | 9.3 |
+| volatile | raw quantile model | 0.955 | 12.4 |
+| volatile | split conformal | 0.882 | 9.8 |
